@@ -27,7 +27,7 @@ def create_spark_session():
 def process_song_data(spark, input_data, output_data):
     # get filepath to song data file
     #song_data = input_data + 'song_data/*/*/*/*.json'
-    song_data = input_data + 'song_data/A/A/A/*.json'
+    song_data = input_data + 'song_data/*/*/*/*.json'
     
     # read song data file
     print('Reading song data from S3 location: {}'.format(song_data))
@@ -75,7 +75,7 @@ def process_log_data(spark, input_data, output_data):
     # write users table to parquet files
     print('Writing USERS parquet file at S3 location : {}'.format(output_data + 'users'))
     t0 = time()
-    #users_table.write.mode('overwrite').parquet(output_data + 'users')
+    users_table.write.mode('overwrite').parquet(output_data + 'users')
     t1 = time() - t0
     print("=== DONE IN: {0:.2f} sec\n".format(t1))
     print('{} records added in the USERS file'.format(users_table.count()))
@@ -106,7 +106,7 @@ def process_log_data(spark, input_data, output_data):
     print('{} records added in the TIME file'.format(time_table.count()))
 
     # read in song data to use for songplays table
-    song_df = spark.read.parquet(input_data + 'songs')
+    song_df = spark.read.parquet(output_data + 'songs')
 
     # extract columns from joined song and log datasets to create songplays table 
     songplays_table = df.withColumn("songplay_id", monotonically_increasing_id()) \
@@ -135,7 +135,7 @@ def main():
     input_data = "s3a://udacity-dend/"
     output_data = "s3a://udacity-dend-bhavik/sparkify/"
     
-    #process_song_data(spark, input_data, output_data)    
+    process_song_data(spark, input_data, output_data)    
     process_log_data(spark, input_data, output_data)
 
 
