@@ -16,6 +16,12 @@ os.environ['AWS_ACCESS_KEY_ID']=config['AWS']['AWS_ACCESS_KEY_ID']
 os.environ['AWS_SECRET_ACCESS_KEY']=config['AWS']['AWS_SECRET_ACCESS_KEY']
 
 def create_spark_session():
+    """
+    Creates SparkSession with the spark aws hadoop jar package
+        Returns:
+        (SparkSession) spark - Spark Session used for further spark processing and communication with AWS S3 
+    
+    """
     spark = SparkSession \
         .builder \
         .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0") \
@@ -25,6 +31,14 @@ def create_spark_session():
 
 
 def process_song_data(spark, input_data, output_data):
+    """
+    Processes the individual song file and creates SONGS and ARTISTS parquet file at AWS S3 location
+        Args:
+        (SparkSession) spark - SparkSession object for spark processing and S3 access.
+        (str) input_data     - AWS S3 file location for reading source json files.
+        (str) output_data    - AWS S3 file location for writing target parquet files.
+    
+    """
     # get filepath to song data file
     #song_data = input_data + 'song_data/*/*/*/*.json'
     song_data = input_data + 'song_data/*/*/*/*.json'
@@ -56,6 +70,15 @@ def process_song_data(spark, input_data, output_data):
     print('{} records added in the ARTISTS file'.format(artists_table.count()))
 
 def process_log_data(spark, input_data, output_data):
+    """
+    Processes the individual songplay log file and creates SONGS,USERS and SONGPLAYS parquet file at AWS S3 location
+        Args:
+        (SparkSession) spark - SparkSession object for spark processing and S3 access.
+        (str) input_data     - AWS S3 file location for reading source json files.
+        (str) output_data    - AWS S3 file location for writing target parquet files.
+    
+    """
+    
     # get filepath to log data file
     log_data = input_data + 'log_data/2018/11'
 
@@ -70,6 +93,7 @@ def process_log_data(spark, input_data, output_data):
     user_rnk = df.select(['userId','firstName','lastName','gender','level','ts']) \
                  .withColumn('rnk',rank().over(Window.partitionBy('userId').orderBy(desc('ts'))))
     
+    # dedup records for a given user, select single latest record based on ts - timestamp column
     users_table = user_rnk.select(['userId','firstName','lastName','gender','level']).filter(user_rnk['rnk'] == 1)
 
     # write users table to parquet files
@@ -100,7 +124,7 @@ def process_log_data(spark, input_data, output_data):
     # write time table to parquet files partitioned by year and month
     print('Writing TIME parquet file at S3 location : {}'.format(output_data + 'time'))
     t0 = time()
-    time_table.write.mode('overwrite').parquet(output_data + 'time')
+    time_table.write.mode('overwrite').partitionBy('year','month').parquet(output_data + 'time')
     t1 = time() - t0
     print("=== DONE IN: {0:.2f} sec\n".format(t1))
     print('{} records added in the TIME file'.format(time_table.count()))
@@ -113,6 +137,8 @@ def process_log_data(spark, input_data, output_data):
                         .join(song_df, song_df.title == df.song, how = 'left') \
                         .select( "songplay_id" \
                                 , col("start_time") \
+                                , year(col("start_time")).alias("year") \
+                                , month(col("start_time")).alias("month") \
                                 , col("userId").alias("user_id") \
                                 , "level" \
                                 , "song_id" \
@@ -124,14 +150,16 @@ def process_log_data(spark, input_data, output_data):
     # write songplays table to parquet files partitioned by year and month
     print('Writing SONGPLAYS parquet file at S3 location : {}'.format(output_data + 'songplays'))
     t0 = time()
-    songplays_table.write.mode('overwrite').parquet(output_data + 'songplays')
+    songplays_table.write.mode('overwrite').partitionBy('year','month').parquet(output_data + 'songplays')
     t1 = time() - t0
     print("=== DONE IN: {0:.2f} sec\n".format(t1))
     print('{} records added in the SONGPLAYS file'.format(songplays_table.count()))
 
 
 def main():
+    
     spark = create_spark_session()
+    
     input_data = "s3a://udacity-dend/"
     output_data = "s3a://udacity-dend-bhavik/sparkify/"
     
